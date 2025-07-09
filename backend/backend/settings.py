@@ -25,8 +25,10 @@ SECRET_KEY = "django-insecure-v2=gcj=enz^(&zy25yaz%x#b980(rd(q-!h-yk6fgu+%ek28pl
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = [
+    "invelon-prueba-3.onrender.com",
+    "localhost",  # for local dev
+]
 
 # Application definition
 
