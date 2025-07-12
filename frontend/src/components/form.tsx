@@ -1,20 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Card, Form, Button, Alert, Spinner, Row, Col } from "react-bootstrap";
-import axios, { type AxiosError } from "axios";
+import axios, { type AxiosError, type AxiosResponse } from "axios";
 import { env } from "@/env";
+import { useState } from "react";
 
-// 1) Define your Zod schema:
+// Zod schema & types
 const userFormSchema = z.object({
-  name: z
-    .string()
-    .min(1, "Name is required")
-    .min(2, "Name must be at least 2 characters"),
-  email: z.string().min(1, "Email is required").email("Invalid email address"),
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Invalid email address"),
   preferences: z
     .string()
     .transform((val) =>
@@ -23,33 +21,26 @@ const userFormSchema = z.object({
         .map((p) => Number(p))
         .filter((n) => !Number.isNaN(n)),
     )
+    .refine((prefs) => new Set(prefs).size === prefs.length, {
+      message: "Duplicated preferences are not allowed",
+    })
     .refine(
-      (prefs) => {
-        if (prefs.length === 0) return true;
-        return new Set(prefs).size === prefs.length;
-      },
-      { message: "Duplicated preferences are not allowed" },
-    )
-    .refine(
-      (prefs) => {
-        if (prefs.length === 0) return true;
-        return prefs.some((n) => n % 2 === 0) && prefs.some((n) => n % 2 !== 0);
-      },
+      (prefs) =>
+        prefs.length === 0 ||
+        (prefs.some((n) => n % 2 === 0) && prefs.some((n) => n % 2 !== 0)),
       { message: "Must include at least one even and one odd preference" },
     ),
   affiliate: z.boolean(),
 });
 
-// 2) Extract raw-input vs parsed-output types:
-type UserFormRaw = z.input<typeof userFormSchema>; // { name: string; email: string; preferences: string; affiliate: boolean }
-type UserFormData = z.infer<typeof userFormSchema>; // { name: string; email: string; preferences: number[]; affiliate: boolean }
+type UserFormRaw = z.input<typeof userFormSchema>;
+type UserFormData = z.infer<typeof userFormSchema>;
 
-const UserForm = () => {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>("");
-  const [success, setSuccess] = useState<string>("");
+export default function UserForm() {
+  const queryClient = useQueryClient();
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [serverSuccess, setServerSuccess] = useState<string | null>(null);
 
-  // 3) Tell useForm about both TFieldValues (raw) and TOutput (parsed):
   const {
     register,
     handleSubmit,
@@ -60,39 +51,44 @@ const UserForm = () => {
     defaultValues: {
       name: "",
       email: "",
-      preferences: "", // raw input is a string
+      preferences: "",
       affiliate: false,
     },
   });
 
-  const onSubmit: SubmitHandler<UserFormData> = async (data) => {
-    setLoading(true);
-    setError("");
-    setSuccess("");
+  type CreateUserResponse = AxiosResponse<unknown, unknown>;
+  type CreateUserError = AxiosError<{ error: string }>;
 
-    try {
-      console.log(
-        await axios.post(`${env.NEXT_PUBLIC_API_URL}/api/users/`, data),
-      );
-      setSuccess("User created successfully!");
+  const createUser = useMutation<
+    CreateUserResponse,
+    CreateUserError,
+    UserFormData
+  >({
+    mutationFn: (newUser) =>
+      axios.post(`${env.NEXT_PUBLIC_API_URL}/api/users/`, newUser),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["users"],
+      });
       reset();
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err) && err.response) {
-        const serverError = (err as AxiosError<{ error: string }>).response!
-          .data.error;
-        setError(serverError || "An unexpected error occurred");
-      } else {
-        // network-level or other unexpected error
-        setError("Error connecting to server");
-      }
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+      setServerSuccess("User created successfully!");
+      setServerError(null);
+    },
+    onError: (error) => {
+      const msg = error.response?.data?.error ?? "An unexpected error occurred";
+      setServerError(msg);
+      setServerSuccess(null);
+    },
+  });
+
+  const onSubmit: SubmitHandler<UserFormData> = (data) => {
+    setServerError(null);
+    setServerSuccess(null);
+    createUser.mutate(data);
   };
 
   return (
-    <Card className="shadow-sm">
+    <Card className="mb-4 shadow-sm">
       <Card.Header className="bg-primary text-white">
         <h5 className="mb-0">Add New User</h5>
       </Card.Header>
@@ -138,7 +134,7 @@ const UserForm = () => {
                 />
                 <Form.Text className="text-muted">
                   Enter comma-separated numbers. Must include at least one even
-                  and one odd preference.
+                  and one odd.
                 </Form.Text>
                 <Form.Control.Feedback type="invalid">
                   {errors.preferences?.message}
@@ -157,21 +153,24 @@ const UserForm = () => {
             </Col>
           </Row>
 
-          {error && (
+          {serverError && (
             <Alert variant="danger" className="mt-3">
-              {error}
+              {serverError}
             </Alert>
           )}
-
-          {success && (
+          {serverSuccess && (
             <Alert variant="success" className="mt-3">
-              {success}
+              {serverSuccess}
             </Alert>
           )}
 
-          <div className="mt-3">
-            <Button type="submit" variant="primary" disabled={loading}>
-              {loading ? (
+          <div className="mt-3 text-end">
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={createUser.isPending}
+            >
+              {createUser.isPending ? (
                 <>
                   <Spinner
                     as="span"
@@ -181,7 +180,7 @@ const UserForm = () => {
                     aria-hidden="true"
                     className="me-2"
                   />
-                  Submitting...
+                  Submitting…
                 </>
               ) : (
                 "Submit"
@@ -192,6 +191,4 @@ const UserForm = () => {
       </Card.Body>
     </Card>
   );
-};
-
-export default UserForm;
+}

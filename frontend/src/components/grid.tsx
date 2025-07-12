@@ -1,44 +1,48 @@
 "use client";
+
+import { useQuery } from "@tanstack/react-query";
+import axios from "axios";
 import { PREFERENCE_IMAGES } from "@/constants/preferences";
 import { env } from "@/env";
-import type { User } from "@/types/user";
-import axios from "axios";
-import React, { useEffect, useState } from "react";
-import { Badge, Card, Row, Col, Alert } from "react-bootstrap";
+import { Badge, Card, Row, Col, Alert, Spinner } from "react-bootstrap";
+import { userSchema, type UserType } from "@/validators/user";
 
-const UserGrid = () => {
-  const [users, setUsers] = useState<User[] | undefined>(undefined);
-  const [loading, setLoading] = useState<boolean>(true);
+async function fetchUsers(): Promise<UserType[]> {
+  const res = await axios.get(`${env.NEXT_PUBLIC_API_URL}/api/users/`);
+  const users = userSchema.array().parse(res.data);
+  return users;
+}
 
-  const renderPreferenceImages = (preferences: string[]) => {
-    return preferences.sort().map((pref) => (
+export default function UserGrid() {
+  const {
+    data: users,
+    isLoading,
+    isError,
+  } = useQuery<UserType[], Error>({
+    queryKey: ["users"],
+    queryFn: fetchUsers,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="py-5 text-center">
+        <Spinner animation="border" role="status" />
+      </div>
+    );
+  }
+  if (isError || !users) {
+    return <Alert variant="danger">Failed to load users.</Alert>;
+  }
+
+  const renderPreferenceImages = (preferences: string[]) =>
+    preferences.sort().map((pref) => (
       <span key={pref} className="me-2" title={pref}>
         {PREFERENCE_IMAGES[pref] ?? "🔸"}
       </span>
     ));
-  };
-
-  useEffect(() => {
-    async function loadUsers() {
-      try {
-        const res = await axios.get(`${env.NEXT_PUBLIC_API_URL}/api/users`);
-        const data = res.data as User[];
-        setUsers(data);
-      } catch (error) {
-        console.error("API request failed:", error);
-        throw error;
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    void loadUsers();
-  }, []);
-
-  if (loading || users === undefined) return <p>loading...</p>;
 
   return (
-    <Row>
+    <Row className="mt-3">
       <Col xs={12}>
         <h5 className="mb-3">Users ({users.length})</h5>
         {users.length === 0 ? (
@@ -47,8 +51,8 @@ const UserGrid = () => {
           </Alert>
         ) : (
           <Row className="g-3">
-            {users.map((user, index) => (
-              <Col key={index} xs={12} sm={6} md={4} lg={3}>
+            {users.map((user, idx) => (
+              <Col key={idx} xs={12} sm={6} md={4} lg={3}>
                 <Card
                   className={`h-100 ${user.affiliate ? "border-success" : ""}`}
                   style={{
@@ -57,7 +61,7 @@ const UserGrid = () => {
                       : "#f8f9fa",
                   }}
                 >
-                  <Card.Body>
+                  <Card.Body className="d-flex flex-column">
                     <Card.Title className="text-truncate" title={user.name}>
                       {user.name}
                     </Card.Title>
@@ -72,7 +76,7 @@ const UserGrid = () => {
                       </a>
                     </Card.Text>
 
-                    {user.preferences && user.preferences.length > 0 && (
+                    {user.preferences?.length > 0 && (
                       <div className="mb-2">
                         <small className="text-muted d-block">
                           Preferences:
@@ -100,6 +104,4 @@ const UserGrid = () => {
       </Col>
     </Row>
   );
-};
-
-export default UserGrid;
+}
