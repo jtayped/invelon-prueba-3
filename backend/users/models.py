@@ -6,6 +6,9 @@ class User(models.Model):
     email = models.EmailField(unique=True)
     affiliate = models.BooleanField()
 
+    def __str__(self):
+        return self.name
+
 
 class Preference(models.Model):
     user = models.ForeignKey(User, related_name="preferences", on_delete=models.CASCADE)

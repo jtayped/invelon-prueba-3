@@ -20,7 +20,7 @@ class UserListCreate(APIView):
     def post(self, request):
         name = request.data.get("name")
         email = request.data.get("email")
-        prefs = request.data.get("preferences")  # as list of ints
+        prefs = [int(n) for n in request.data.get("preferences")]
         affiliate = request.data.get("affiliate") in ["true", True]
 
         # validate inputs

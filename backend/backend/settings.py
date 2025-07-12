@@ -10,31 +10,34 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
-import os
-import environ
 from pathlib import Path
+import environ
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env(
-    DJANGO_DEBUG=(bool, False),
-    DJANGO_ALLOWED_HOSTS=(list, []),
+    # set casting, default values
+    DEBUG=(bool, False),
+    SECRET_KEY=(str, ""),
+    ALLOWED_HOSTS=(list, []),
+    CORS_ALLOWED_ORIGINS=(list, []),
 )
-env_file = BASE_DIR / ".env"
-if env_file.exists():
-    env.read_env(env_file)
+# read .env file at BASE_DIR/.env
+environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env("DJANGO_SECRET_KEY")
+SECRET_KEY = env("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env("DJANGO_DEBUG")
+DEBUG = env("DEBUG")
 
-ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
+ALLOWED_HOSTS = env("ALLOWED_HOSTS")
+
 
 # Application definition
 
@@ -47,9 +50,11 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "users",
+    "corsheaders",
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -59,18 +64,14 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "backend.urls"
+CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
 
-STATIC_URL = "/static/"
-STATICFILES_DIRS = [
-    BASE_DIR.parent / "frontend" / "build" / "static",
-]
-STATIC_ROOT = BASE_DIR / "staticfiles"
+ROOT_URLCONF = "backend.urls"
 
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR.parent / "frontend" / "build"],
+        "DIRS": [],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
