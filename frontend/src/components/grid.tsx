@@ -1,6 +1,5 @@
 "use client";
 import { PREFERENCE_IMAGES } from "@/constants/preferences";
-import { env } from "@/env";
 import type { User } from "@/types/user";
 import axios from "axios";
 import React, { useEffect, useState } from "react";
@@ -13,19 +12,13 @@ const UserGrid = () => {
   const renderPreferenceImages = (preferences: string[]) => {
     return preferences.sort().map((pref) => (
       <span key={pref} className="me-2" title={pref}>
-        {PREFERENCE_IMAGES[pref] || "🔸"}
+        {PREFERENCE_IMAGES[pref] ?? "🔸"}
       </span>
     ));
   };
 
   useEffect(() => {
     async function loadUsers() {
-      const config = {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      };
-
       try {
         const res = await axios.get("http://127.0.0.1:8000/api/users");
         const data = res.data as User[];
@@ -38,7 +31,7 @@ const UserGrid = () => {
       }
     }
 
-    loadUsers();
+    void loadUsers();
   }, []);
 
   if (loading || users === undefined) return <p>loading...</p>;
