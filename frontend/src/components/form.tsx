@@ -1,12 +1,13 @@
 "use client";
+
 import { useState } from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Card, Form, Button, Alert, Spinner, Row, Col } from "react-bootstrap";
-import axios from "axios";
+import axios, { type AxiosError } from "axios";
 
-// Zod Schema
+// 1) Define your Zod schema:
 const userFormSchema = z.object({
   name: z
     .string()
@@ -18,82 +19,69 @@ const userFormSchema = z.object({
     .transform((val) =>
       val
         .split(",")
-        .map((p) => p.trim())
-        .filter((p) => p),
+        .map((p) => Number(p))
+        .filter((n) => !Number.isNaN(n)),
     )
     .refine(
       (prefs) => {
         if (prefs.length === 0) return true;
-
-        // Check for duplicates
-        const uniquePrefs = [...new Set(prefs)];
-        return uniquePrefs.length === prefs.length;
+        return new Set(prefs).size === prefs.length;
       },
       { message: "Duplicated preferences are not allowed" },
     )
     .refine(
       (prefs) => {
         if (prefs.length === 0) return true;
-
-        // Check for at least one even and one odd preference
-        const hasEven = prefs.some((_, index) => index % 2 === 0);
-        const hasOdd = prefs.some((_, index) => index % 2 === 1);
-
-        return hasEven && hasOdd;
+        return prefs.some((n) => n % 2 === 0) && prefs.some((n) => n % 2 !== 0);
       },
       { message: "Must include at least one even and one odd preference" },
     ),
   affiliate: z.boolean(),
 });
 
-// Types
-type UserFormData = z.infer<typeof userFormSchema>;
-
-interface ApiResponse {
-  error?: string;
-  name?: string;
-  email?: string;
-  preferences?: string[];
-  affiliate?: boolean;
-}
+// 2) Extract raw-input vs parsed-output types:
+type UserFormRaw = z.input<typeof userFormSchema>; // { name: string; email: string; preferences: string; affiliate: boolean }
+type UserFormData = z.infer<typeof userFormSchema>; // { name: string; email: string; preferences: number[]; affiliate: boolean }
 
 const UserForm = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
 
+  // 3) Tell useForm about both TFieldValues (raw) and TOutput (parsed):
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
-  } = useForm<UserFormData>({
+  } = useForm<UserFormRaw, unknown, UserFormData>({
     resolver: zodResolver(userFormSchema),
     defaultValues: {
       name: "",
       email: "",
-      preferences: "",
+      preferences: "", // raw input is a string
       affiliate: false,
     },
   });
 
-  const onSubmit: SubmitHandler<UserFormData> = async (data: UserFormData) => {
+  const onSubmit: SubmitHandler<UserFormData> = async (data) => {
     setLoading(true);
     setError("");
     setSuccess("");
 
     try {
-      await axios.post("http://127.0.0.1:8000/api/users/", {
-        name: data.name,
-        email: data.email,
-        preferences: data.preferences,
-        affiliate: data.affiliate.toString(),
-      });
-
+      console.log(await axios.post("http://127.0.0.1:8000/api/users/", data));
       setSuccess("User created successfully!");
       reset();
-    } catch (err) {
-      setError("Error connecting to server");
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response) {
+        const serverError = (err as AxiosError<{ error: string }>).response!
+          .data.error;
+        setError(serverError || "An unexpected error occurred");
+      } else {
+        // network-level or other unexpected error
+        setError("Error connecting to server");
+      }
       console.error(err);
     } finally {
       setLoading(false);
@@ -142,12 +130,12 @@ const UserForm = () => {
                 <Form.Control
                   type="text"
                   {...register("preferences")}
-                  placeholder="water, coffee, soda (comma separated)"
+                  placeholder="e.g. 1,2,3 (comma separated)"
                   isInvalid={!!errors.preferences}
                 />
                 <Form.Text className="text-muted">
-                  Enter preferences separated by commas. Must include at least
-                  one even and one odd preference.
+                  Enter comma-separated numbers. Must include at least one even
+                  and one odd preference.
                 </Form.Text>
                 <Form.Control.Feedback type="invalid">
                   {errors.preferences?.message}
