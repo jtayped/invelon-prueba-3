@@ -1,5 +1,6 @@
 "use client";
 import { PREFERENCE_IMAGES } from "@/constants/preferences";
+import { env } from "@/env";
 import type { User } from "@/types/user";
 import axios from "axios";
 import React, { useEffect, useState } from "react";
@@ -20,7 +21,7 @@ const UserGrid = () => {
   useEffect(() => {
     async function loadUsers() {
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/users");
+        const res = await axios.get(`${env.NEXT_PUBLIC_API_URL}/api/users`);
         const data = res.data as User[];
         setUsers(data);
       } catch (error) {

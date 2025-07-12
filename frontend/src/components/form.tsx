@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Card, Form, Button, Alert, Spinner, Row, Col } from "react-bootstrap";
 import axios, { type AxiosError } from "axios";
+import { env } from "@/env";
 
 // 1) Define your Zod schema:
 const userFormSchema = z.object({
@@ -70,7 +71,9 @@ const UserForm = () => {
     setSuccess("");
 
     try {
-      console.log(await axios.post("http://127.0.0.1:8000/api/users/", data));
+      console.log(
+        await axios.post(`${env.NEXT_PUBLIC_API_URL}/api/users/`, data),
+      );
       setSuccess("User created successfully!");
       reset();
     } catch (err: unknown) {
